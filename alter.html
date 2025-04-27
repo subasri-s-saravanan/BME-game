@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Medical Mystery Game</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      color: #fff;
+      padding-top: 100px;
+    }
+    #score-container {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 20px;
+      z-index: 1000;
+      text-align: center;
+    }
+    #scoreboard { font-size: 1.2rem; font-weight: bold; }
+    #game-container {
+      background: #fff;
+      color: #333;
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+      text-align: center;
+    }
+    #question { margin: 20px 0; font-size: 1.2rem; line-height: 1.5; }
+    .btn {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #3498db, #8e44ad);
+      color: #fff;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .btn:hover { background: linear-gradient(135deg, #8e44ad, #3498db); }
+    #feedback { font-weight: bold; margin: 15px 0; color: #e74c3c; }
+    #feedback-image { width: 80px; margin: 10px auto; display: none; }
+    #restart { display: none; }
+    #start-screen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); color: #fff;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      z-index: 2000;
+    }
+    #start-screen button { font-size: 1.2rem; padding: 12px 24px; }
+
+    /* Blinking Light Styles */
+    @keyframes blink-green {
+      0%, 100% { background-color: #2ecc71; }
+      50% { background-color: #27ae60; }
+    }
+
+    @keyframes blink-red {
+      0%, 100% { background-color: #e74c3c; }
+      50% { background-color: #c0392b; }
+    }
+
+    .blink-green {
+      animation: blink-green 0.5s 2;
+      border: 2px solid #2ecc71;
+    }
+
+    .blink-red {
+      animation: blink-red 0.5s 2;
+      border: 2px solid #e74c3c;
+    }
+  </style>
+</head>
+<body>
+  <div id="start-screen">
+    <h1>Medical Mystery Game</h1>
+    <button id="start-button" class="btn">Start Game</button>
+  </div>
+
+  <div id="score-container">
+    <div id="scoreboard">
+      Score: <span id="score-value">0</span> pts | High Score: <span id="high-score">0</span> pts
+    </div>
+  </div>
+
+  <div id="game-container" style="visibility:hidden;">
+    <div id="patient-info"></div>
+    <div id="question-progress" style="font-weight: bold; margin-bottom: 10px;"></div>
+    <div id="question"></div>
+    <div id="buttons"></div>
+    <div id="feedback"></div>
+    <img id="feedback-image" src="" alt="" />
+    <button id="restart" class="btn" onclick="restartGame()">Play Again</button>
+  </div>
+
+  <!-- Sound Effects -->
+  <audio id="correct-sound" preload="auto">
+    <source src="ding-101492.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="wrong-sound" preload="auto">
+    <source src="incorrect-buzzer-sound-147336.mp3" type="audio/mpeg">
+  </audio>
+
+  <script>
+    let correctSound, wrongSound;
+    let currentCase = 0, currentStep = 0, score = 0, correctCount = 0, total = 0;
+    let highScore = localStorage.getItem('highScore') || 0;
+
+    const scoreValue = document.getElementById('score-value');
+    const highScoreDisplay = document.getElementById('high-score');
+    const infoEl = document.getElementById('patient-info');
+    const questionEl = document.getElementById('question');
+    const buttonsEl = document.getElementById('buttons');
+    const feedbackEl = document.getElementById('feedback');
+    const feedbackImg = document.getElementById('feedback-image');
+    const restartBtn = document.getElementById('restart');
+    const progressEl = document.getElementById('question-progress');
+
+    const conditions = [
+      'Sore Throat', 'Chest Pain', 'Diabetes', 'Asthma', 'Stroke', 'Hypertension',
+      'Fracture', 'UTI', 'Appendicitis', 'Migraine', 'Allergic Reaction', 'Pneumonia',
+      'Tuberculosis', 'Depression', 'Anxiety', 'Kidney Stones', 'Hepatitis', 'COVID-19',
+      'Skin Rash', 'Ear Infection'
+    ];
+
+    const alternativeInitialSteps = [
+      'Perform physical exam', 'Check vital signs', 'Do rapid diagnostic test', 'Start IV fluids',
+      'Assess airway and breathing', 'Measure blood glucose', 'Do neurological exam', 'Administer oxygen',
+      'Inspect affected area', 'Perform urine dipstick test', 'Check oxygen saturation', 'Palpate abdomen',
+      'Ask about recent contacts', 'Screen for depression', 'Evaluate mental status', 'Order ultrasound',
+      'Order liver panel', 'Isolate the patient', 'Inspect skin lesions', 'Examine ear canal'
+    ];
+
+    const cases = conditions.map((condition, i) => {
+      const initialOptions = [
+        { text: alternativeInitialSteps[i], feedback: 'Right step chosen.', correct: true },
+        { text: 'Prescribe meds immediately', feedback: 'Wrong treatment.', correct: false },
+        { text: 'Order imaging', feedback: 'Too early without context.', correct: false }
+      ];
+      shuffleArray(initialOptions);
+      const nextOptions = [
+        { text: 'Start specific treatment', feedback: 'Condition improves.', correct: true },
+        { text: 'Discharge patient', feedback: 'Patient deteriorates.', correct: false }
+      ];
+      shuffleArray(nextOptions);
+      return {
+        name: `Case ${i + 1}: ${condition}`,
+        description: `Patient presents with symptoms suggestive of ${condition}.`,
+        steps: [
+          { question: `What is the initial step in evaluating ${condition}?`, options: initialOptions },
+          { question: `What is the next best step in management of ${condition}?`, options: nextOptions }
+        ]
+      };
+    });
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    document.getElementById('start-button').addEventListener('click', () => {
+      correctSound = document.getElementById('correct-sound');
+      wrongSound = document.getElementById('wrong-sound');
+
+      correctSound.load();
+      wrongSound.load();
+
+      document.getElementById('start-screen').style.display = 'none';
+      document.getElementById('game-container').style.visibility = 'visible';
+      render();
+    });
+
+    function render() {
+      const totalQuestions = cases.length * 2;
+      const questionNumber = currentCase * 2 + currentStep + 1;
+      progressEl.textContent = `Question ${questionNumber} of ${totalQuestions}`;
+
+      const c = cases[currentCase], s = c.steps[currentStep];
+      infoEl.innerHTML = `<strong>${c.name}</strong><br>${c.description}`;
+      questionEl.textContent = s.question;
+      buttonsEl.innerHTML = s.options.map((o, i) => `<button class="btn" onclick="choose(${i})">${o.text}</button>`).join('');
+      feedbackEl.textContent = '';
+      feedbackImg.style.display = 'none';
+      restartBtn.style.display = 'none';
+      scoreValue.textContent = score;
+      highScoreDisplay.textContent = highScore;
+    }
+
+    function choose(idx) {
+      const option = cases[currentCase].steps[currentStep].options[idx];
+      const buttons = document.querySelectorAll('#buttons .btn');
+
+      // Remove any previous blink classes
+      buttons.forEach(btn => {
+        btn.classList.remove('blink-green', 'blink-red');
+      });
+
+      const selectedButton = buttons[idx];
+
+      feedbackEl.textContent = (option.correct ? '✅ ' : '❌ ') + option.feedback;
+      feedbackImg.src = option.correct ? 
+        'https://cdn-icons-png.flaticon.com/512/742/742751.png' :
+        'https://cdn-icons-png.flaticon.com/512/742/742774.png';
+      feedbackImg.style.display = 'block';
+
+      if (option.correct) {
+        correctSound.load(); correctSound.play();
+        score += 10; correctCount++;
+        selectedButton.classList.add('blink-green');
+      } else {
+        wrongSound.load(); wrongSound.play();
+        selectedButton.classList.add('blink-red');
+      }
+
+      total++;
+
+      setTimeout(() => {
+        currentStep++;
+        if (currentStep < cases[currentCase].steps.length) {
+          render();
+        } else {
+          currentCase++;
+          currentStep = 0;
+          if (currentCase < cases.length) {
+            render();
+          } else {
+            endGame();
+          }
+        }
+      }, 1000);
+    }
+
+    function endGame() {
+      questionEl.textContent = '🎉 All cases complete!';
+      buttonsEl.innerHTML = '';
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('highScore', highScore);
+      }
+      restartBtn.style.display = 'block';
+    }
+
+    function restartGame() {
+      currentCase = 0; currentStep = 0; score = 0; correctCount = 0; total = 0;
+      render();
+    }
+  </script>
+</body>
+</html>

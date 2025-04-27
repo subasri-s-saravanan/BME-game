@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Correct/Wrong Sound Demo</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 50px; }
+    button { margin: 10px; padding: 10px 20px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Answer Feedback Sounds</h1>
+  
+  <!-- Buttons to play sounds -->
+  <button id="correct-btn">Play Correct Sound</button>
+  <button id="wrong-btn">Play Wrong Sound</button>
+
+  <!-- Correct sound -->
+  <audio id="audio-correct" preload="auto">
+    <source src="correct.mp3" type="audio/mpeg">
+    <source src="correct.ogg" type="audio/ogg">
+    Your browser does not support audio playback.
+  </audio>
+
+  <!-- Wrong sound -->
+  <audio id="audio-wrong" preload="auto">
+    <source src="wrong.mp3" type="audio/mpeg">
+    <source src="wrong.ogg" type="audio/ogg">
+    Your browser does not support audio playback.
+  </audio>
+
+  <script>
+    // Get the audio elements
+    const correctAudio = document.getElementById('audio-correct');
+    const wrongAudio = document.getElementById('audio-wrong');
+
+    // Get the buttons
+    const correctButton = document.getElementById('correct-btn');
+    const wrongButton = document.getElementById('wrong-btn');
+
+    // Add event listeners to the buttons
+    correctButton.addEventListener('click', function() {
+      correctAudio.currentTime = 0; // Start the sound from the beginning
+      correctAudio.play().catch(e => console.warn('Play prevented:', e)); // Play sound
+    });
+
+    wrongButton.addEventListener('click', function() {
+      wrongAudio.currentTime = 0; // Start the sound from the beginning
+      wrongAudio.play().catch(e => console.warn('Play prevented:', e)); // Play sound
+    });
+  </script>
+</body>
+</html>

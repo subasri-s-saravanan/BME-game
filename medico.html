@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Medical Mystery Game</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      color: #fff;
+      padding-top: 100px;
+    }
+    #score-container {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 20px;
+      z-index: 1000;
+      text-align: center;
+    }
+    #scoreboard {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    #breakdown {
+      font-size: 0.9rem;
+    }
+    #game-container {
+      background: #fff;
+      color: #333;
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+      text-align: center;
+    }
+    h1 { color: #2c3e50; margin-bottom: 20px; }
+    #patient-info, #question { margin: 15px 0; font-size: 1.1rem; }
+    .btn {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #3498db, #8e44ad);
+      color: #fff;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .btn:hover { background: linear-gradient(135deg, #8e44ad, #3498db); }
+    #feedback { font-weight: bold; margin: 15px 0; color: #e74c3c; }
+    #restart {
+      background: linear-gradient(90deg, #e53e3e, #feb2b2);
+      color: #fff;
+      display: none;
+    }
+    .gauge {
+      width: 200px;
+      height: 100px;
+      margin: 20px auto;
+    }
+    .gauge .arc {
+      stroke: #ddd;
+      stroke-width: 20;
+      fill: none;
+    }
+    .gauge .needle {
+      stroke: red;
+      stroke-width: 4;
+      transform-origin: 100px 100px;
+    }
+  </style>
+</head>
+<body>
+  <div id="score-container">
+    <div id="scoreboard">Score: <span id="score-value">0</span> pts</div>
+    <div id="breakdown">
+      <ul>
+        <li>Correct Answers: <span id="correct-count">0</span></li>
+        <li>Total Questions: <span id="total-questions">0</span></li>
+        <li>Accuracy: <span id="accuracy">0%</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="game-container">
+    <h1>Diagnose the Patient!</h1>
+    <svg class="gauge">
+      <path class="arc" d="M20,100 A80,80 0 0,1 180,100" />
+      <line class="needle" id="needle" x1="100" y1="100" x2="100" y2="30" />
+    </svg>
+    <div id="patient-info"></div>
+    <div id="question"></div>
+    <div id="buttons"></div>
+    <div id="feedback"></div>
+    <button id="restart" class="btn" onclick="restartGame()">Play Again</button>
+  </div>
+
+  <script>
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    const conditions = [
+      'Sore Throat', 'Chest Pain', 'Diabetes', 'Asthma', 'Stroke', 'Hypertension', 'Fracture',
+      'UTI', 'Appendicitis', 'Migraine', 'Allergic Reaction', 'Pneumonia', 'Tuberculosis',
+      'Depression', 'Anxiety', 'Kidney Stones', 'Hepatitis', 'COVID-19', 'Skin Rash', 'Ear Infection'
+    ];
+
+    const alternativeInitialSteps = [
+      'Perform physical exam', 'Check vital signs', 'Do rapid diagnostic test', 'Start IV fluids',
+      'Assess airway and breathing', 'Measure blood glucose', 'Do neurological exam', 'Administer oxygen',
+      'Inspect affected area', 'Perform urine dipstick test', 'Check oxygen saturation', 'Palpate abdomen',
+      'Ask about recent contacts', 'Screen for depression', 'Evaluate mental status', 'Order ultrasound',
+      'Order liver panel', 'Isolate the patient', 'Inspect skin lesions', 'Examine ear canal'
+    ];
+
+    const cases = conditions.map((condition, i) => {
+      const initialOptions = [
+        { text: alternativeInitialSteps[i], feedback: 'Right step chosen.', correct: true },
+        { text: 'Prescribe meds immediately', feedback: 'Wrong treatment.', correct: false },
+        { text: 'Order imaging', feedback: 'Too early without context.', correct: false }
+      ];
+      shuffleArray(initialOptions);
+
+      const nextOptions = [
+        { text: 'Start specific treatment', feedback: 'Condition improves.', correct: true },
+        { text: 'Discharge patient', feedback: 'Patient deteriorates.', correct: false }
+      ];
+      shuffleArray(nextOptions);
+
+      return {
+        name: `Case ${i + 1}: ${condition}`,
+        description: `Patient presents with symptoms suggestive of ${condition}.`,
+        steps: [
+          {
+            question: `What is the initial step in evaluating ${condition}?`,
+            options: initialOptions
+          },
+          {
+            question: `What is the next best step in management of ${condition}?`,
+            options: nextOptions
+          }
+        ]
+      };
+    });
+
+    let currentCase = 0, currentStep = 0, score = 0, correct = 0, total = 0;
+
+    const scoreValue = document.getElementById('score-value');
+    const correctCount = document.getElementById('correct-count');
+    const totalQuestions = document.getElementById('total-questions');
+    const accuracy = document.getElementById('accuracy');
+    const infoEl = document.getElementById('patient-info');
+    const questionEl = document.getElementById('question');
+    const buttonsEl = document.getElementById('buttons');
+    const feedbackEl = document.getElementById('feedback');
+    const restartBtn = document.getElementById('restart');
+    const needle = document.getElementById('needle');
+
+    function updateGauge() {
+      const percent = total ? (correct / total) : 0;
+      const angle = 180 * percent - 90;
+      needle.style.transform = `rotate(${angle}deg)`;
+    }
+
+    function render() {
+      const c = cases[currentCase];
+      const s = c.steps[currentStep];
+      infoEl.innerHTML = `<strong>${c.name}</strong><br>${c.description}`;
+      questionEl.textContent = s.question;
+      feedbackEl.textContent = '';
+      buttonsEl.innerHTML = s.options.map((o, i) =>
+        `<button class="btn" onclick="choose(${i})">${o.text}</button>`
+      ).join('');
+      scoreValue.textContent = score;
+      correctCount.textContent = correct;
+      totalQuestions.textContent = total;
+      accuracy.textContent = total ? Math.round((correct / total) * 100) + '%' : '0%';
+      updateGauge();
+    }
+
+    function choose(idx) {
+      const option = cases[currentCase].steps[currentStep].options[idx];
+      feedbackEl.textContent = (option.correct ? '✅ ' : '❌ ') + option.feedback;
+      if (option.correct) {
+        score += 10;
+        correct++;
+      }
+      total++;
+      setTimeout(() => {
+        currentStep++;
+        if (currentStep < cases[currentCase].steps.length) {
+          render();
+        } else {
+          currentCase++;
+          currentStep = 0;
+          if (currentCase < cases.length) {
+            render();
+          } else {
+            questionEl.textContent = '🎉 All cases complete!';
+            buttonsEl.innerHTML = '';
+            restartBtn.style.display = 'inline-block';
+            render();
+          }
+        }
+      }, 800);
+    }
+
+    function restartGame() {
+      currentCase = 0;
+      currentStep = 0;
+      score = 0;
+      correct = 0;
+      total = 0;
+      restartBtn.style.display = 'none';
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
